@@ -298,10 +298,22 @@ export class DropShadowFilter extends Filter
      * The strength of the shadow's blur.
      * @default 2
      */
-    get blur(): number { return this._blurFilter.strength; }
+    get blur(): number
+    {
+        return this._blurFilter instanceof KawaseBlurFilter
+            ? this._blurFilter.strength
+            : (this._blurFilter as BlurFilter).blur;
+    }
     set blur(value: number)
     {
-        this._blurFilter.strength = value;
+        if (this._blurFilter instanceof KawaseBlurFilter)
+        {
+            this._blurFilter.strength = value;
+        }
+        else
+        {
+            (this._blurFilter as BlurFilter).blur = value;
+        }
         this._updatePadding();
     }
 
