@@ -108,7 +108,8 @@ export class DropShadowFilter extends Filter
     public shadowOnly = false;
 
     private _color!: Color;
-    private _blurFilter: BlurFilter | KawaseBlurFilter;
+    private _blurFilter!: BlurFilter;
+    private _kawaseBlurFilter!: KawaseBlurFilter;
     private _basePass: Filter;
     private _useKawaseBlur: boolean;
 
@@ -159,7 +160,7 @@ export class DropShadowFilter extends Filter
         // KawaseBlurFilter is available as an option for backwards compatibility
         if (this._useKawaseBlur)
         {
-            this._blurFilter = new KawaseBlurFilter({
+            this._kawaseBlurFilter = new KawaseBlurFilter({
                 strength: options.kernels as [number, number] ?? options.blur,
                 quality: options.kernels ? undefined : options.quality,
                 pixelSize: options.pixelSize,
@@ -226,9 +227,10 @@ export class DropShadowFilter extends Filter
     ): void
     {
         const renderTarget = TexturePool.getSameSizeTexture(input);
+        const activeBlurFilter = this._useKawaseBlur ? this._kawaseBlurFilter : this._blurFilter;
 
         filterManager.applyFilter(this, input, renderTarget, true);
-        this._blurFilter.apply(filterManager, renderTarget, output, clearMode);
+        activeBlurFilter.apply(filterManager, renderTarget, output, clearMode);
 
         if (!this.shadowOnly)
         {
@@ -300,19 +302,19 @@ export class DropShadowFilter extends Filter
      */
     get blur(): number
     {
-        return this._blurFilter instanceof KawaseBlurFilter
-            ? this._blurFilter.strength
-            : (this._blurFilter as BlurFilter).blur;
+        return this._useKawaseBlur
+            ? this._kawaseBlurFilter.strength
+            : this._blurFilter.blur;
     }
     set blur(value: number)
     {
-        if (this._blurFilter instanceof KawaseBlurFilter)
+        if (this._useKawaseBlur)
         {
-            this._blurFilter.strength = value;
+            this._kawaseBlurFilter.strength = value;
         }
         else
         {
-            (this._blurFilter as BlurFilter).blur = value;
+            this._blurFilter.blur = value;
         }
         this._updatePadding();
     }
@@ -321,23 +323,35 @@ export class DropShadowFilter extends Filter
      * Sets the quality of the Blur Filter
      * @default 4
      */
-    get quality(): number { return this._blurFilter.quality; }
+    get quality(): number
+    {
+        return this._useKawaseBlur
+            ? this._kawaseBlurFilter.quality
+            : this._blurFilter.quality;
+    }
     set quality(value: number)
     {
-        this._blurFilter.quality = value;
+        if (this._useKawaseBlur)
+        {
+            this._kawaseBlurFilter.quality = value;
+        }
+        else
+        {
+            this._blurFilter.quality = value;
+        }
         this._updatePadding();
     }
 
     /** Sets the kernels of the Blur Filter (only available when using KawaseBlurFilter) */
     get kernels(): number[] | undefined
     {
-        return this._blurFilter instanceof KawaseBlurFilter ? this._blurFilter.kernels : undefined;
+        return this._useKawaseBlur ? this._kawaseBlurFilter.kernels : undefined;
     }
     set kernels(value: number[] | undefined)
     {
-        if (this._blurFilter instanceof KawaseBlurFilter && value)
+        if (this._useKawaseBlur && value)
         {
-            this._blurFilter.kernels = value;
+            this._kawaseBlurFilter.kernels = value;
         }
     }
 
@@ -347,16 +361,16 @@ export class DropShadowFilter extends Filter
      */
     get pixelSize(): PointData | undefined
     {
-        if (this._blurFilter instanceof KawaseBlurFilter)
+        if (this._useKawaseBlur)
         {
-            return this._blurFilter.pixelSize as PointData;
+            return this._kawaseBlurFilter.pixelSize as PointData;
         }
 
         return undefined;
     }
     set pixelSize(value: PointData | number[] | number | undefined)
     {
-        if (this._blurFilter instanceof KawaseBlurFilter && value !== undefined)
+        if (this._useKawaseBlur && value !== undefined)
         {
             if (typeof value === 'number')
             {
@@ -368,7 +382,7 @@ export class DropShadowFilter extends Filter
                 value = { x: value[0], y: value[1] };
             }
 
-            this._blurFilter.pixelSize = value;
+            this._kawaseBlurFilter.pixelSize = value;
         }
     }
 
@@ -378,13 +392,13 @@ export class DropShadowFilter extends Filter
      */
     get pixelSizeX(): number | undefined
     {
-        return this._blurFilter instanceof KawaseBlurFilter ? this._blurFilter.pixelSizeX : undefined;
+        return this._useKawaseBlur ? this._kawaseBlurFilter.pixelSizeX : undefined;
     }
     set pixelSizeX(value: number | undefined)
     {
-        if (this._blurFilter instanceof KawaseBlurFilter && value !== undefined)
+        if (this._useKawaseBlur && value !== undefined)
         {
-            this._blurFilter.pixelSizeX = value;
+            this._kawaseBlurFilter.pixelSizeX = value;
         }
     }
 
@@ -394,13 +408,13 @@ export class DropShadowFilter extends Filter
      */
     get pixelSizeY(): number | undefined
     {
-        return this._blurFilter instanceof KawaseBlurFilter ? this._blurFilter.pixelSizeY : undefined;
+        return this._useKawaseBlur ? this._kawaseBlurFilter.pixelSizeY : undefined;
     }
     set pixelSizeY(value: number | undefined)
     {
-        if (this._blurFilter instanceof KawaseBlurFilter && value !== undefined)
+        if (this._useKawaseBlur && value !== undefined)
         {
-            this._blurFilter.pixelSizeY = value;
+            this._kawaseBlurFilter.pixelSizeY = value;
         }
     }
 
