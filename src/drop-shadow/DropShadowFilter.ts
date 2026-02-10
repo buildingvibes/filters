@@ -1,4 +1,5 @@
 import {
+    BlurFilter,
     Color,
     ColorSource,
     Filter,
@@ -55,15 +56,21 @@ export interface DropShadowFilterOptions
      */
     kernels?: number[];
     /**
-     * The pixelSize of the Kawase Blur filter
+     * The pixelSize of the Kawase Blur filter (only used when useKawaseBlur is true)
      * @default {x:1,y:1}
      */
     pixelSize?: PointData | number[] | number;
     /**
-     * The resolution of the Kawase Blur filter
+     * The resolution of the Blur filter
      * @default 1
      */
     resolution?: number;
+    /**
+     * Use KawaseBlurFilter instead of the default BlurFilter.
+     * BlurFilter is faster on Mac/iPhone but KawaseBlurFilter may be faster on other devices.
+     * @default false
+     */
+    useKawaseBlur?: boolean;
 }
 
 /**
@@ -85,6 +92,7 @@ export class DropShadowFilter extends Filter
         quality: 3,
         pixelSize: { x: 1, y: 1 },
         resolution: 1,
+        useKawaseBlur: false,
     };
 
     public uniforms: {
@@ -100,8 +108,9 @@ export class DropShadowFilter extends Filter
     public shadowOnly = false;
 
     private _color!: Color;
-    private _blurFilter: KawaseBlurFilter;
+    private _blurFilter: BlurFilter | KawaseBlurFilter;
     private _basePass: Filter;
+    private _useKawaseBlur: boolean;
 
     /**
      * @param options - Options for the DropShadowFilter constructor.
@@ -144,10 +153,25 @@ export class DropShadowFilter extends Filter
         this._color = new Color();
         this.color = options.color ?? 0x000000;
 
-        this._blurFilter = new KawaseBlurFilter({
-            strength: options.kernels as [number, number] ?? options.blur,
-            quality: options.kernels ? undefined : options.quality,
-        });
+        this._useKawaseBlur = options.useKawaseBlur ?? false;
+
+        // Use BlurFilter by default for better performance on Mac/iPhone
+        // KawaseBlurFilter is available as an option for backwards compatibility
+        if (this._useKawaseBlur)
+        {
+            this._blurFilter = new KawaseBlurFilter({
+                strength: options.kernels as [number, number] ?? options.blur,
+                quality: options.kernels ? undefined : options.quality,
+                pixelSize: options.pixelSize,
+            });
+        }
+        else
+        {
+            this._blurFilter = new BlurFilter({
+                strength: options.blur,
+                quality: options.quality,
+            });
+        }
 
         this._basePass = new Filter({
             gpuProgram: GpuProgram.from({
@@ -292,46 +316,81 @@ export class DropShadowFilter extends Filter
         this._updatePadding();
     }
 
-    /** Sets the kernels of the Blur Filter */
-    get kernels(): number[] { return this._blurFilter.kernels; }
-    set kernels(value: number[]) { this._blurFilter.kernels = value; }
+    /** Sets the kernels of the Blur Filter (only available when using KawaseBlurFilter) */
+    get kernels(): number[] | undefined
+    {
+        return this._blurFilter instanceof KawaseBlurFilter ? this._blurFilter.kernels : undefined;
+    }
+    set kernels(value: number[] | undefined)
+    {
+        if (this._blurFilter instanceof KawaseBlurFilter && value)
+        {
+            this._blurFilter.kernels = value;
+        }
+    }
 
     /**
-     * Sets the pixelSize of the Kawase Blur filter
+     * Sets the pixelSize of the Kawase Blur filter (only available when using KawaseBlurFilter)
      * @default [1,1]
      */
-    get pixelSize(): PointData
+    get pixelSize(): PointData | undefined
     {
-        return this._blurFilter.pixelSize as PointData;
+        if (this._blurFilter instanceof KawaseBlurFilter)
+        {
+            return this._blurFilter.pixelSize as PointData;
+        }
+
+        return undefined;
     }
-    set pixelSize(value: PointData | number[] | number)
+    set pixelSize(value: PointData | number[] | number | undefined)
     {
-        if (typeof value === 'number')
+        if (this._blurFilter instanceof KawaseBlurFilter && value !== undefined)
         {
-            value = { x: value, y: value };
-        }
+            if (typeof value === 'number')
+            {
+                value = { x: value, y: value };
+            }
 
-        if (Array.isArray(value))
-        {
-            value = { x: value[0], y: value[1] };
-        }
+            if (Array.isArray(value))
+            {
+                value = { x: value[0], y: value[1] };
+            }
 
-        this._blurFilter.pixelSize = value;
+            this._blurFilter.pixelSize = value;
+        }
     }
 
     /**
-     * Sets the pixelSize of the Kawase Blur filter on the `x` axis
+     * Sets the pixelSize of the Kawase Blur filter on the `x` axis (only available when using KawaseBlurFilter)
      * @default 1
      */
-    get pixelSizeX(): number { return this._blurFilter.pixelSizeX; }
-    set pixelSizeX(value: number) { this._blurFilter.pixelSizeX = value; }
+    get pixelSizeX(): number | undefined
+    {
+        return this._blurFilter instanceof KawaseBlurFilter ? this._blurFilter.pixelSizeX : undefined;
+    }
+    set pixelSizeX(value: number | undefined)
+    {
+        if (this._blurFilter instanceof KawaseBlurFilter && value !== undefined)
+        {
+            this._blurFilter.pixelSizeX = value;
+        }
+    }
 
     /**
-     * Sets the pixelSize of the Kawase Blur filter on the `y` axis
+     * Sets the pixelSize of the Kawase Blur filter on the `y` axis (only available when using KawaseBlurFilter)
      * @default 1
      */
-    get pixelSizeY(): number { return this._blurFilter.pixelSizeY; }
-    set pixelSizeY(value: number) { this._blurFilter.pixelSizeY = value; }
+    get pixelSizeY(): number | undefined
+    {
+        return this._blurFilter instanceof KawaseBlurFilter ? this._blurFilter.pixelSizeY : undefined;
+    }
+    set pixelSizeY(value: number | undefined)
+    {
+        if (this._blurFilter instanceof KawaseBlurFilter && value !== undefined)
+        {
+            this._blurFilter.pixelSizeY = value;
+        }
+    }
 
     /**
      * Recalculate the proper padding amount.
